@@ -1,0 +1,30 @@
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Entornos Virtuales (No subir las librerías, pesan demasiado) ---
+venv/
+.venv/
+env/
+
+# --- Base de Datos (No subir tus datos locales) ---
+*.db
+*.sqlite3
+techbridge.db
+
+# --- Archivos Subidos (No subir los PDFs de prueba) ---
+files/
+*.pdf
+
+# --- Variables de Entorno y Secretos (SEGURIDAD CRÍTICA) ---
+.env
+
+# --- IDEs (Configuraciones de tu editor) ---
+.vscode/
+.idea/
+*.swp
+
+# --- Logs y Errores ---
+*.log
