@@ -19,75 +19,146 @@ async def crear_curso(
     nombre: str = Form(...), 
     proveedor: str = Form(...), 
     archivo: UploadFile = File(...),
-    generar_lecciones: bool = Form(True),
+    num_lecciones: int = Form(5),
+    num_preguntas: int = Form(10),
     db: Session = Depends(get_db)
 ):
     """
-    Crea un curso a partir de un PDF.
-    Genera lecciones interactivas para aprender y preguntas para evaluar.
+    🎯 Crea un curso completo a partir de un PDF.
+    ✅ Extrae texto del PDF
+    ✅ Genera lecciones interactivas con IA
+    ✅ Crea preguntas de evaluación automáticas
     """
-    # 1. Guardar PDF
-    upload_dir = os.getenv("UPLOAD_DIR", "files")
-    os.makedirs(upload_dir, exist_ok=True)
-    ruta_pdf = f"{upload_dir}/{archivo.filename}"
-    with open(ruta_pdf, "wb") as buffer:
-        shutil.copyfileobj(archivo.file, buffer)
     
-    # 2. Extraer texto
-    texto = extraer_texto_pdf(ruta_pdf)
-    
-    # 3. Crear curso
-    nuevo_curso = Curso(nombre=nombre, proveedor=proveedor, contenido_texto=texto)
-    db.add(nuevo_curso)
-    db.commit()
-    db.refresh(nuevo_curso)
-    
-    lecciones_creadas = 0
-    preguntas_creadas = 0
-    
-    # 4. Generar lecciones interactivas
-    if generar_lecciones:
-        lecciones_generadas = generar_lecciones_interactivas(texto, num_lecciones=5)
+    try:
+        # 1. Validar archivo PDF
+        if not archivo.filename.endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF")
         
-        for lec in lecciones_generadas:
-            nueva_leccion = Leccion(
-                curso_id=nuevo_curso.id,
-                titulo=lec["titulo"],
-                orden=lec["orden"],
-                contenido_markdown=lec["contenido_markdown"],
-                ejemplos_codigo=json.dumps(lec.get("ejemplos_codigo", [])),
-                puntos_clave=json.dumps(lec.get("puntos_clave", [])),
-                duracion_estimada=lec.get("duracion_estimada", 5)
-            )
-            db.add(nueva_leccion)
-            lecciones_creadas += 1
+        # 2. Guardar PDF
+        upload_dir = os.getenv("UPLOAD_DIR", "files")
+        os.makedirs(upload_dir, exist_ok=True)
+        ruta_pdf = f"{upload_dir}/{archivo.filename}"
         
-        db.commit()
-    
-    # 5. Generar preguntas
-    preguntas_generadas = generar_examen_dinamico(texto, cantidad=10)
-    
-    for p in preguntas_generadas:
-        nueva_pregunta = Pregunta(
-            curso_id=nuevo_curso.id,
-            tipo=p.get("tipo", "multiple"),
-            texto_pregunta=p["pregunta"],
-            opciones_json=json.dumps(p.get("opciones", [])),
-            respuesta_correcta=p["correcta"],
-            explicacion_feedback=p["explicacion"],
-            dificultad=p.get("dificultad", "media")
+        with open(ruta_pdf, "wb") as buffer:
+            shutil.copyfileobj(archivo.file, buffer)
+        
+        print(f"✅ PDF guardado en: {ruta_pdf}")
+        
+        # 3. Extraer texto del PDF
+        try:
+            texto = extraer_texto_pdf(ruta_pdf)
+            if not texto or len(texto) < 100:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="El PDF no contiene texto suficiente o no se pudo extraer"
+                )
+            print(f"✅ Texto extraído: {len(texto)} caracteres")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error extrayendo texto del PDF: {str(e)}")
+        
+        # 4. Crear curso en BD
+        nuevo_curso = Curso(
+            nombre=nombre, 
+            proveedor=proveedor, 
+            contenido_texto=texto[:5000]  # Limitar tamaño en BD
         )
-        db.add(nueva_pregunta)
-        preguntas_creadas += 1
+        db.add(nuevo_curso)
+        db.commit()
+        db.refresh(nuevo_curso)
+        print(f"✅ Curso creado con ID: {nuevo_curso.id}")
+        
+        lecciones_creadas = []
+        preguntas_creadas = []
+        
+        # 5. Generar lecciones interactivas con IA
+        try:
+            print(f"🤖 Generando {num_lecciones} lecciones con IA...")
+            lecciones_generadas = generar_lecciones_interactivas(texto, num_lecciones=num_lecciones)
+            
+            if not lecciones_generadas or len(lecciones_generadas) == 0:
+                print("⚠️ No se generaron lecciones")
+            else:
+                for lec in lecciones_generadas:
+                    nueva_leccion = Leccion(
+                        curso_id=nuevo_curso.id,
+                        titulo=lec.get("titulo", "Sin título"),
+                        orden=lec.get("orden", 1),
+                        contenido_markdown=lec.get("contenido_markdown", ""),
+                        ejemplos_codigo=json.dumps(lec.get("ejemplos_codigo", [])),
+                        puntos_clave=json.dumps(lec.get("puntos_clave", [])),
+                        duracion_estimada=lec.get("duracion_estimada", 5)
+                    )
+                    db.add(nueva_leccion)
+                    lecciones_creadas.append(nueva_leccion)
+                
+                db.commit()
+                print(f"✅ {len(lecciones_creadas)} lecciones guardadas")
+        
+        except Exception as e:
+            print(f"⚠️ Error generando lecciones: {str(e)}")
+            # Continuar aunque falle la generación de lecciones
+        
+        # 6. Generar preguntas de evaluación con IA
+        try:
+            print(f"🤖 Generando {num_preguntas} preguntas con IA...")
+            preguntas_generadas = generar_examen_dinamico(texto, cantidad=num_preguntas)
+            
+            if not preguntas_generadas or len(preguntas_generadas) == 0:
+                print("⚠️ No se generaron preguntas")
+            else:
+                for p in preguntas_generadas:
+                    nueva_pregunta = Pregunta(
+                        curso_id=nuevo_curso.id,
+                        tipo=p.get("tipo", "multiple"),
+                        texto_pregunta=p.get("pregunta", ""),
+                        opciones_json=json.dumps(p.get("opciones", [])),
+                        respuesta_correcta=p.get("correcta", ""),
+                        explicacion_feedback=p.get("explicacion", ""),
+                        dificultad=p.get("dificultad", "media")
+                    )
+                    db.add(nueva_pregunta)
+                    preguntas_creadas.append(nueva_pregunta)
+                
+                db.commit()
+                print(f"✅ {len(preguntas_creadas)} preguntas guardadas")
+        
+        except Exception as e:
+            print(f"⚠️ Error generando preguntas: {str(e)}")
+            # Continuar aunque falle la generación de preguntas
+        
+        # 7. Respuesta final
+        return {
+            "mensaje": "✅ Curso creado exitosamente con IA",
+            "curso": {
+                "id": nuevo_curso.id,
+                "nombre": nuevo_curso.nombre,
+                "proveedor": nuevo_curso.proveedor
+            },
+            "estadisticas": {
+                "lecciones_generadas": len(lecciones_creadas),
+                "preguntas_generadas": len(preguntas_creadas),
+                "caracteres_extraidos": len(texto)
+            },
+            "lecciones": [
+                {
+                    "id": l.id,
+                    "titulo": l.titulo,
+                    "orden": l.orden,
+                    "duracion_estimada": l.duracion_estimada
+                } for l in lecciones_creadas
+            ],
+            "archivo_pdf": ruta_pdf
+        }
     
-    db.commit()
-    
-    return {
-        "mensaje": "Curso creado exitosamente",
-        "curso_id": nuevo_curso.id,
-        "lecciones_generadas": lecciones_creadas,
-        "preguntas_generadas": preguntas_creadas
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error creando curso: {str(e)}"
+        )
 
 @router.get("/", response_model=list)
 def listar_cursos(db: Session = Depends(get_db)):

@@ -56,11 +56,26 @@ def generar_lecciones_interactivas(texto_curso: str, num_lecciones: int = 5):
     """
     
     try:
+        print(f"🤖 Llamando a Gemini para generar {num_lecciones} lecciones...")
         response = model.generate_content(prompt)
+        
+        if not response or not response.text:
+            print("❌ Gemini no devolvió respuesta")
+            return []
+        
+        print(f"✅ Respuesta recibida de Gemini ({len(response.text)} caracteres)")
         texto_limpio = response.text.replace("```json", "").replace("```", "").strip()
-        return json.loads(texto_limpio)
+        
+        lecciones = json.loads(texto_limpio)
+        print(f"✅ {len(lecciones)} lecciones parseadas correctamente")
+        return lecciones
+        
+    except json.JSONDecodeError as e:
+        print(f"❌ Error parseando JSON de lecciones: {e}")
+        print(f"Respuesta de IA: {response.text[:500]}...")
+        return []
     except Exception as e:
-        print(f"Error generando lecciones: {e}")
+        print(f"❌ Error generando lecciones: {e}")
         return []
 
 def generar_examen_dinamico(texto_curso: str, cantidad: int = 10, enfoque: str = "general"):
@@ -104,11 +119,26 @@ def generar_examen_dinamico(texto_curso: str, cantidad: int = 10, enfoque: str =
     """
     
     try:
+        print(f"🤖 Llamando a Gemini para generar {cantidad} preguntas...")
         response = model.generate_content(prompt)
+        
+        if not response or not response.text:
+            print("❌ Gemini no devolvió respuesta")
+            return []
+        
+        print(f"✅ Respuesta recibida de Gemini ({len(response.text)} caracteres)")
         texto_limpio = response.text.replace("```json", "").replace("```", "").strip()
-        return json.loads(texto_limpio)
+        
+        preguntas = json.loads(texto_limpio)
+        print(f"✅ {len(preguntas)} preguntas parseadas correctamente")
+        return preguntas
+        
+    except json.JSONDecodeError as e:
+        print(f"❌ Error parseando JSON de preguntas: {e}")
+        print(f"Respuesta de IA: {response.text[:500]}...")
+        return []
     except Exception as e:
-        print(f"Error IA: {e}")
+        print(f"❌ Error generando preguntas: {e}")
         return []
 
 def generar_feedback_final(puntaje: int, temas_fallados: list):
