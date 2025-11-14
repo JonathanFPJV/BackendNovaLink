@@ -16,43 +16,28 @@ def generar_lecciones_interactivas(texto_curso: str, num_lecciones: int = 5):
     model = genai.GenerativeModel('gemini-2.5-flash')
     
     prompt = f"""
-    Eres un pedagogo experto en crear contenido educativo interactivo y fácil de entender.
+    Genera {num_lecciones} lecciones educativas en formato JSON.
     
-    TAREA: Divide el siguiente contenido en {num_lecciones} lecciones progresivas y didácticas.
+    REGLAS ESTRICTAS:
+    1. Responde SOLO con JSON válido (sin markdown, sin texto extra)
+    2. Usa \\n para saltos de línea en strings
+    3. Escapa comillas dobles con \\"
+    4. No uses caracteres de control especiales
+    5. Mantén contenido_markdown simple (máximo 500 caracteres)
     
-    REGLAS:
-    1. Cada lección debe ser corta (5-10 minutos de lectura)
-    2. Usa lenguaje simple y ejemplos prácticos del mundo real
-    3. Incluye analogías y comparaciones para conceptos complejos
-    4. Estructura cada lección con: introducción, desarrollo, ejemplos y resumen
-    5. Los ejemplos de código deben ser simples y bien comentados
-    
-    FORMATO JSON ESPERADO:
+    FORMATO:
     [
-        {{
-            "titulo": "Introducción a IoT y sus Aplicaciones",
-            "orden": 1,
-            "contenido_markdown": "# Introducción\\n\\n¿Qué es IoT?...\\n\\n## Conceptos Básicos\\n...",
-            "ejemplos_codigo": [
-                {{
-                    "lenguaje": "python",
-                    "descripcion": "Sensor de temperatura básico",
-                    "codigo": "import sensor\\ntemp = sensor.read_temperature()\\nprint(temp)"
-                }}
-            ],
-            "puntos_clave": [
-                "IoT conecta dispositivos a internet",
-                "Los sensores recopilan datos del entorno",
-                "MQTT es un protocolo común en IoT"
-            ],
-            "duracion_estimada": 7
-        }}
+      {{
+        "titulo": "Titulo de leccion",
+        "orden": 1,
+        "contenido_markdown": "Texto explicativo breve",
+        "puntos_clave": ["Punto 1", "Punto 2", "Punto 3"],
+        "duracion_estimada": 7
+      }}
     ]
     
-    CONTENIDO DEL CURSO:
-    {texto_curso[:15000]}
-    
-    IMPORTANTE: Responde SOLO con el JSON válido, sin texto adicional.
+    CONTENIDO:
+    {texto_curso[:8000]}
     """
     
     try:
@@ -64,15 +49,29 @@ def generar_lecciones_interactivas(texto_curso: str, num_lecciones: int = 5):
             return []
         
         print(f"✅ Respuesta recibida de Gemini ({len(response.text)} caracteres)")
-        texto_limpio = response.text.replace("```json", "").replace("```", "").strip()
         
-        lecciones = json.loads(texto_limpio)
+        # Limpieza agresiva del JSON
+        texto = response.text
+        texto = texto.replace("```json", "").replace("```", "")
+        texto = texto.strip()
+        
+        # Remover caracteres de control problemáticos
+        import re
+        texto = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', texto)  # Quitar control chars
+        texto = texto.replace('\\n', ' ')  # Convertir \n a espacios
+        texto = texto.replace('\n', ' ')   # Convertir saltos reales a espacios
+        texto = re.sub(r'\s+', ' ', texto)  # Normalizar espacios
+        
+        print(f"🧹 JSON limpiado: {len(texto)} caracteres")
+        
+        lecciones = json.loads(texto)
         print(f"✅ {len(lecciones)} lecciones parseadas correctamente")
         return lecciones
         
     except json.JSONDecodeError as e:
         print(f"❌ Error parseando JSON de lecciones: {e}")
-        print(f"Respuesta de IA: {response.text[:500]}...")
+        print(f"Texto limpio (primeros 500): {texto[:500]}...")
+        # Intentar parsear manualmente o retornar vacío
         return []
     except Exception as e:
         print(f"❌ Error generando lecciones: {e}")

@@ -210,3 +210,65 @@ def obtener_curso(curso_id: int, db: Session = Depends(get_db)):
             "total_preguntas": num_preguntas
         }
     }
+
+@router.delete("/{curso_id}", response_model=dict)
+def eliminar_curso(curso_id: int, db: Session = Depends(get_db)):
+    """
+    🗑️ Elimina un curso y TODOS sus datos relacionados en cascada:
+    - Lecciones del curso
+    - Preguntas del examen
+    - Progreso de lecciones de estudiantes
+    - Progreso de exámenes de estudiantes
+    """
+    from app.models.database import ProgresoLeccion, Progreso
+    
+    # Verificar que el curso existe
+    curso = db.query(Curso).filter(Curso.id == curso_id).first()
+    if not curso:
+        raise HTTPException(status_code=404, detail="Curso no encontrado")
+    
+    try:
+        # Contar elementos antes de eliminar
+        num_lecciones = db.query(Leccion).filter(Leccion.curso_id == curso_id).count()
+        num_preguntas = db.query(Pregunta).filter(Pregunta.curso_id == curso_id).count()
+        num_progreso_lecciones = db.query(ProgresoLeccion).filter(ProgresoLeccion.curso_id == curso_id).count()
+        num_progreso_examenes = db.query(Progreso).filter(Progreso.curso_id == curso_id).count()
+        
+        # 1. Eliminar progreso de lecciones
+        db.query(ProgresoLeccion).filter(ProgresoLeccion.curso_id == curso_id).delete()
+        print(f"🗑️ Eliminados {num_progreso_lecciones} registros de progreso de lecciones")
+        
+        # 2. Eliminar progreso de exámenes
+        db.query(Progreso).filter(Progreso.curso_id == curso_id).delete()
+        print(f"🗑️ Eliminados {num_progreso_examenes} registros de progreso de exámenes")
+        
+        # 3. Eliminar lecciones
+        db.query(Leccion).filter(Leccion.curso_id == curso_id).delete()
+        print(f"🗑️ Eliminadas {num_lecciones} lecciones")
+        
+        # 4. Eliminar preguntas
+        db.query(Pregunta).filter(Pregunta.curso_id == curso_id).delete()
+        print(f"🗑️ Eliminadas {num_preguntas} preguntas")
+        
+        # 5. Eliminar el curso
+        db.delete(curso)
+        db.commit()
+        print(f"✅ Curso '{curso.nombre}' eliminado completamente")
+        
+        return {
+            "mensaje": f"✅ Curso '{curso.nombre}' eliminado exitosamente",
+            "curso_id": curso_id,
+            "elementos_eliminados": {
+                "lecciones": num_lecciones,
+                "preguntas": num_preguntas,
+                "progreso_lecciones": num_progreso_lecciones,
+                "progreso_examenes": num_progreso_examenes
+            }
+        }
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error eliminando curso: {str(e)}"
+        )
