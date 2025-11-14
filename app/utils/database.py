@@ -1,15 +1,24 @@
 """
 Configuración de base de datos SQLAlchemy
 """
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from app.config import settings
+
+# Obtener DATABASE_URL directamente de variable de entorno o usar SQLite
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./techbridge.db")
+
+# Configurar argumentos según el tipo de base de datos
+connect_args = {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
 
 # Crear el motor de conexión
 engine = create_engine(
-    settings.DATABASE_URL, 
-    connect_args={"check_same_thread": False}  # Solo para SQLite
+    DATABASE_URL, 
+    connect_args=connect_args,
+    pool_pre_ping=True  # Verificar conexiones antes de usar
 )
 
 # Crear la sesión

@@ -1,24 +1,25 @@
 """
 Servicio de autenticación y gestión de usuarios
 """
+import os
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from app.models.database import Usuario
 from app.schemas.auth import RegistroUsuario, LoginUsuario
 from app.utils.security import hash_password, verify_password
-from app.config import settings
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
 def validar_token_google(token: str):
     """Valida un token de Google y devuelve la información del usuario"""
-    if not settings.GOOGLE_CLIENT_ID:
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if not google_client_id:
         return None
     try:
         info = id_token.verify_oauth2_token(
             token, 
             google_requests.Request(), 
-            settings.GOOGLE_CLIENT_ID
+            google_client_id
         )
         return info
     except Exception as e:

@@ -11,7 +11,6 @@ from app.schemas.curso import CursoResponse, CursoDetalle, LeccionSimple
 from app.services.pdf_service import extraer_texto_pdf
 from app.services.ai_service import generar_lecciones_interactivas, generar_examen_dinamico
 from app.utils.database import get_db
-from app.config import settings
 
 router = APIRouter(prefix="/cursos", tags=["Cursos"])
 
@@ -28,8 +27,9 @@ async def crear_curso(
     Genera lecciones interactivas para aprender y preguntas para evaluar.
     """
     # 1. Guardar PDF
-    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    ruta_pdf = f"{settings.UPLOAD_DIR}/{archivo.filename}"
+    upload_dir = os.getenv("UPLOAD_DIR", "files")
+    os.makedirs(upload_dir, exist_ok=True)
+    ruta_pdf = f"{upload_dir}/{archivo.filename}"
     with open(ruta_pdf, "wb") as buffer:
         shutil.copyfileobj(archivo.file, buffer)
     

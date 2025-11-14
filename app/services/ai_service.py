@@ -1,12 +1,12 @@
 """
 Servicio de integración con IA (Google Gemini)
 """
+import os
 import google.generativeai as genai
 import json
-from app.config import settings
 
 # Configurar API de Google
-genai.configure(api_key=settings.GOOGLE_API_KEY)
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 def generar_lecciones_interactivas(texto_curso: str, num_lecciones: int = 5):
     """

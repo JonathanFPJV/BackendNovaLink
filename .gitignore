@@ -20,6 +20,11 @@ files/
 
 # --- Variables de Entorno y Secretos (SEGURIDAD CRÍTICA) ---
 .env
+.env.local
+*.env
+
+# Excepto .env.example
+!.env.example
 
 # --- IDEs (Configuraciones de tu editor) ---
 .vscode/

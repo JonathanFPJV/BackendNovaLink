@@ -4,7 +4,6 @@ Arquitectura limpia con separación de responsabilidades
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.config import settings
 from app.utils.database import engine, Base
 from app.routes import auth_router, cursos_router, lecciones_router, examenes_router
 
@@ -21,7 +20,7 @@ app = FastAPI(
 # Configurar CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=["*"],  # En producción, especificar dominios permitidos
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
