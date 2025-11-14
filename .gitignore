@@ -28,3 +28,4 @@ files/
 
 # --- Logs y Errores ---
 *.log
+*.old
