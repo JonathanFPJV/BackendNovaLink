@@ -228,18 +228,30 @@ def eliminar_curso(curso_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Curso no encontrado")
     
     try:
-        # Contar elementos antes de eliminar
-        num_lecciones = db.query(Leccion).filter(Leccion.curso_id == curso_id).count()
-        num_preguntas = db.query(Pregunta).filter(Pregunta.curso_id == curso_id).count()
-        num_progreso_lecciones = db.query(ProgresoLeccion).filter(ProgresoLeccion.curso_id == curso_id).count()
-        num_progreso_examenes = db.query(Progreso).filter(Progreso.curso_id == curso_id).count()
+        # Obtener IDs de lecciones y preguntas antes de eliminar
+        lecciones = db.query(Leccion).filter(Leccion.curso_id == curso_id).all()
+        preguntas = db.query(Pregunta).filter(Pregunta.curso_id == curso_id).all()
         
-        # 1. Eliminar progreso de lecciones
-        db.query(ProgresoLeccion).filter(ProgresoLeccion.curso_id == curso_id).delete()
+        lecciones_ids = [lec.id for lec in lecciones]
+        preguntas_ids = [preg.id for preg in preguntas]
+        
+        num_lecciones = len(lecciones_ids)
+        num_preguntas = len(preguntas_ids)
+        
+        # 1. Eliminar progreso de lecciones (usando leccion_id)
+        num_progreso_lecciones = 0
+        if lecciones_ids:
+            num_progreso_lecciones = db.query(ProgresoLeccion).filter(
+                ProgresoLeccion.leccion_id.in_(lecciones_ids)
+            ).delete(synchronize_session=False)
         print(f"🗑️ Eliminados {num_progreso_lecciones} registros de progreso de lecciones")
         
-        # 2. Eliminar progreso de exámenes
-        db.query(Progreso).filter(Progreso.curso_id == curso_id).delete()
+        # 2. Eliminar progreso de exámenes (usando pregunta_id)
+        num_progreso_examenes = 0
+        if preguntas_ids:
+            num_progreso_examenes = db.query(Progreso).filter(
+                Progreso.pregunta_id.in_(preguntas_ids)
+            ).delete(synchronize_session=False)
         print(f"🗑️ Eliminados {num_progreso_examenes} registros de progreso de exámenes")
         
         # 3. Eliminar lecciones
@@ -251,12 +263,13 @@ def eliminar_curso(curso_id: int, db: Session = Depends(get_db)):
         print(f"🗑️ Eliminadas {num_preguntas} preguntas")
         
         # 5. Eliminar el curso
+        nombre_curso = curso.nombre
         db.delete(curso)
         db.commit()
-        print(f"✅ Curso '{curso.nombre}' eliminado completamente")
+        print(f"✅ Curso '{nombre_curso}' eliminado completamente")
         
         return {
-            "mensaje": f"✅ Curso '{curso.nombre}' eliminado exitosamente",
+            "mensaje": f"✅ Curso '{nombre_curso}' eliminado exitosamente",
             "curso_id": curso_id,
             "elementos_eliminados": {
                 "lecciones": num_lecciones,
