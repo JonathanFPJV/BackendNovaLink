@@ -1,4 +1,5 @@
 services:
+  # 🚀 Backend API
   - type: web
     name: novalinq-backend
     runtime: python
@@ -11,5 +12,16 @@ services:
         sync: false
       - key: CLIENT_ID
         sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: novalinq-db
+          property: connectionString
     healthCheckPath: /health
     autoDeploy: true
+
+# 🗄️ Base de datos PostgreSQL
+databases:
+  - name: novalinq-db
+    databaseName: novalinq
+    user: novalinq_user
+    plan: free
