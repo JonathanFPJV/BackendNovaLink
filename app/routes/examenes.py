@@ -136,35 +136,89 @@ def calificar_examen(intento: IntentoExamen, db: Session = Depends(get_db)):
     }
 
 @router.post("/curso/{curso_id}/regenerar", response_model=dict)
-def generar_reintento(curso_id: int, db: Session = Depends(get_db)):
+def generar_reintento(curso_id: int, cantidad: int = 10, db: Session = Depends(get_db)):
     """
-    Regenera nuevas preguntas para el curso.
+    🔄 Regenera nuevas preguntas para el curso.
     Útil cuando el estudiante quiere volver a practicar con preguntas diferentes.
     """
+    # Verificar que el curso existe
     curso = db.query(Curso).filter(Curso.id == curso_id).first()
     if not curso:
         raise HTTPException(status_code=404, detail="Curso no encontrado")
     
+    # Verificar que hay contenido
     if not curso.contenido_texto:
-        raise HTTPException(status_code=400, detail="Curso sin contenido")
-
-    # Borrar preguntas antiguas
-    db.query(Pregunta).filter(Pregunta.curso_id == curso_id).delete()
-    
-    # Generar nuevas preguntas
-    nuevas_preguntas = generar_examen_dinamico(curso.contenido_texto, cantidad=10)
-    
-    for p in nuevas_preguntas:
-        nueva = Pregunta(
-            curso_id=curso.id,
-            tipo=p.get("tipo", "multiple"),
-            texto_pregunta=p["pregunta"],
-            opciones_json=json.dumps(p.get("opciones", [])),
-            respuesta_correcta=p["correcta"],
-            explicacion_feedback=p["explicacion"],
-            dificultad=p.get("dificultad", "media")
+        raise HTTPException(
+            status_code=400, 
+            detail="El curso no tiene contenido. Sube un PDF primero."
         )
-        db.add(nueva)
-    db.commit()
     
-    return {"mensaje": "Examen regenerado", "preguntas_nuevas": len(nuevas_preguntas)}
+    try:
+        # Eliminar preguntas antiguas
+        preguntas_viejas = db.query(Pregunta).filter(Pregunta.curso_id == curso_id).all()
+        num_eliminadas = len(preguntas_viejas)
+        
+        for p in preguntas_viejas:
+            db.delete(p)
+        
+        print(f"🗑️ Eliminadas {num_eliminadas} preguntas antiguas")
+        
+        # Generar nuevas preguntas con IA
+        print(f"🤖 Generando {cantidad} nuevas preguntas...")
+        nuevas_preguntas = generar_examen_dinamico(curso.contenido_texto, cantidad=cantidad)
+        
+        if not nuevas_preguntas:
+            raise HTTPException(
+                status_code=500,
+                detail="No se pudieron generar preguntas. Intenta nuevamente."
+            )
+        
+        # Guardar nuevas preguntas
+        preguntas_creadas = []
+        for p in nuevas_preguntas:
+            nueva = Pregunta(
+                curso_id=curso_id,
+                tipo=p.get("tipo", "multiple"),
+                texto_pregunta=p.get("pregunta", ""),
+                opciones_json=json.dumps(p.get("opciones", [])),
+                respuesta_correcta=p.get("correcta", ""),
+                explicacion_feedback=p.get("explicacion", ""),
+                dificultad=p.get("dificultad", "media")
+            )
+            db.add(nueva)
+            preguntas_creadas.append(nueva)
+        
+        db.commit()
+        print(f"✅ {len(preguntas_creadas)} nuevas preguntas guardadas")
+        
+        # Refrescar para obtener IDs
+        for p in preguntas_creadas:
+            db.refresh(p)
+        
+        return {
+            "mensaje": "✅ Examen regenerado exitosamente",
+            "curso_id": curso_id,
+            "curso_nombre": curso.nombre,
+            "preguntas_eliminadas": num_eliminadas,
+            "preguntas_generadas": len(preguntas_creadas),
+            "preguntas": [
+                {
+                    "id": p.id,
+                    "tipo": p.tipo,
+                    "pregunta": p.texto_pregunta,
+                    "opciones": json.loads(p.opciones_json),
+                    "dificultad": p.dificultad
+                }
+                for p in preguntas_creadas
+            ]
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error regenerando examen: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error regenerando examen: {str(e)}"
+        )

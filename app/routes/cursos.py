@@ -61,7 +61,7 @@ async def crear_curso(
         nuevo_curso = Curso(
             nombre=nombre, 
             proveedor=proveedor, 
-            contenido_texto=texto[:5000]  # Limitar tamaño en BD
+            contenido_texto=texto  # Guardar texto completo para regenerar exámenes
         )
         db.add(nuevo_curso)
         db.commit()
